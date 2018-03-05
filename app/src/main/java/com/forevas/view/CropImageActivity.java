@@ -76,7 +76,6 @@ public class CropImageActivity extends Activity implements View.OnClickListener 
                 Bitmap tempBitmap = imageView.crop();
                 String path = "/sdcard/temp_crop.png";
                 saveBitmap(tempBitmap, path);
-                tempBitmap.recycle();
                 Intent intent = new Intent();
                 intent.putExtra("path", path);
                 setResult(Activity.RESULT_OK, intent);
