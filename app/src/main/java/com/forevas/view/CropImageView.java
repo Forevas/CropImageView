@@ -135,7 +135,9 @@ public class CropImageView extends View {
         Matrix cropMatrix = new Matrix();
         cropMatrix.setRotate(angle);
         Bitmap tempBitmap = Bitmap.createBitmap(srcBitmap, startX, startY, cropWidth, cropHeight, cropMatrix, true);
-        srcBitmap.recycle();
+        if(!srcBitmap.equals(tempBitmap)){
+            srcBitmap.recycle();
+        }
         setBitmap(tempBitmap);
         return tempBitmap;
     }
