@@ -17,16 +17,28 @@ import java.io.IOException;
  * 图片裁剪页面
  */
 public class CropImageActivity extends Activity implements View.OnClickListener {
+    public static final int TYPE_SDCARD = 0;
+    public static final int TYPE_RESOURCE = 1;
+
     public static void cropImage(Activity activity, String srcPath, int requestCode) {
         Intent intent = new Intent(activity, CropImageActivity.class);
+        intent.putExtra("type", TYPE_SDCARD);
         intent.putExtra("path", srcPath);
         activity.startActivityForResult(intent, requestCode);
     }
 
     public static void cropImage(Fragment fragment, String srcPath, int requestCode) {
         Intent intent = new Intent(fragment.getContext(), CropImageActivity.class);
+        intent.putExtra("type", TYPE_SDCARD);
         intent.putExtra("path", srcPath);
         fragment.startActivityForResult(intent, requestCode);
+    }
+
+    public static void cropResImage(Activity activity, int resId, int requestCode) {
+        Intent intent = new Intent(activity, CropImageActivity.class);
+        intent.putExtra("type", TYPE_RESOURCE);
+        intent.putExtra("resId", resId);
+        activity.startActivityForResult(intent, requestCode);
     }
 
     CropImageView imageView;
@@ -34,6 +46,9 @@ public class CropImageActivity extends Activity implements View.OnClickListener 
     TextView tvRotate;
     TextView tvCrop;
     TextView tvFinish;
+    int type;
+    String path;
+    int resId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,12 +66,18 @@ public class CropImageActivity extends Activity implements View.OnClickListener 
         tvFinish.setOnClickListener(this);
 
         Intent intent = getIntent();
-        String path = intent.getStringExtra("path");
-        if (new File(path).exists()) {
-            imageView.setImagePath(path);
-        } else {
-            Toast.makeText(this, "无效的图片路径", Toast.LENGTH_SHORT).show();
-            finish();
+        type = intent.getIntExtra("type", -1);
+        if (type == TYPE_SDCARD) {
+            path = intent.getStringExtra("path");
+            if (new File(path).exists()) {
+                imageView.setImagePath(path);
+            } else {
+                Toast.makeText(this, "无效的图片路径", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        } else if (type == TYPE_RESOURCE) {
+            resId = intent.getIntExtra("resId", -1);
+            imageView.setImageRes(resId);
         }
     }
 
@@ -70,10 +91,10 @@ public class CropImageActivity extends Activity implements View.OnClickListener 
                 imageView.rotate();
                 break;
             case R.id.tv_crop:
-                imageView.crop();
+                imageView.crop(true);
                 break;
             case R.id.tv_finish:
-                Bitmap tempBitmap = imageView.crop();
+                Bitmap tempBitmap = imageView.crop(false);
                 String path = "/sdcard/temp_crop.png";
                 saveBitmap(tempBitmap, path);
                 Intent intent = new Intent();

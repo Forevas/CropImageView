@@ -42,9 +42,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="旋转"
-                android:textColor="#ffffff"
-                android:textSize="16sp" />
+                android:background="@mipmap/photo_icon_rotate" />
         </FrameLayout>
 
         <FrameLayout
@@ -57,9 +55,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="裁剪"
-                android:textColor="#ffffff"
-                android:textSize="16sp" />
+                android:background="@mipmap/photo_icon_cut" />
         </FrameLayout>
 
         <FrameLayout
@@ -73,7 +69,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:text="完成"
-                android:textColor="#ffffff"
+                android:textColor="#37B7FF"
                 android:textSize="16sp" />
         </FrameLayout>
 

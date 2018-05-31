@@ -7,6 +7,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
@@ -23,7 +25,7 @@ public class CropImageView extends View {
     public static final int MIN_H = 200;
     public static final int OFFSET = 50;
 
-    Paint mThinPaint, mThickPaint;
+    Paint mThinPaint, mThickPaint, mShadowPaint;
     int mThinWidth = 5, mThickWidth = 15;
     int mLeft, mRight, mTop, mBottom;
     int mLastLeft, mLastRight, mLastTop, mLastBottom;
@@ -62,6 +64,10 @@ public class CropImageView extends View {
         mThickPaint.setColor(Color.parseColor("#ffffff"));
         mThickPaint.setStrokeWidth(mThickWidth);
 
+        mShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        mShadowPaint.setColor(Color.parseColor("#7f000000"));
+        mShadowPaint.setStyle(Paint.Style.FILL);
+
         mRects[0] = new Rect();
         mRects[1] = new Rect();
         mRects[2] = new Rect();
@@ -76,13 +82,88 @@ public class CropImageView extends View {
     }
 
     public void setImageRes(int id) {
-        srcBitmap = BitmapFactory.decodeResource(getResources(), id);
+//        srcBitmap = BitmapFactory.decodeResource(getResources(), id);
+        srcBitmap = getBitmapFromRes(id, 2048, 2048);
+        srcBitmap = resizeBitmap(srcBitmap);
         setBitmap(srcBitmap);
     }
 
     public void setImagePath(String path) {
-        srcBitmap = BitmapFactory.decodeFile(path);
+        srcBitmap = getBitmapFromFile(path, 2048, 2048);//处理
+        srcBitmap = resizeBitmap(srcBitmap);
         setBitmap(srcBitmap);
+    }
+
+    public Bitmap getBitmapFromRes(int resId, int width, int height) {
+        BitmapFactory.Options opts = null;
+        if (width > 0 && height > 0) {
+            opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;//设置inJustDecodeBounds为true后，decodeFile并不分配空间，此时计算原始图片的长度和宽度
+            BitmapFactory.decodeResource(getResources(), resId, opts);
+            // 计算图片缩放比例
+            opts.inSampleSize = computeSampleSize(opts, width * height);
+            opts.inJustDecodeBounds = false;//这里一定要将其设置回false，因为之前我们将其设置成了true
+            opts.inInputShareable = true;
+            opts.inPurgeable = true;
+        }
+        try {
+            return BitmapFactory.decodeResource(getResources(), resId, opts);
+        } catch (OutOfMemoryError e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public Bitmap getBitmapFromFile(String path, int width, int height) {
+        BitmapFactory.Options opts = null;
+        if (width > 0 && height > 0) {
+            opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;//设置inJustDecodeBounds为true后，decodeFile并不分配空间，此时计算原始图片的长度和宽度
+            BitmapFactory.decodeFile(path, opts);
+            // 计算图片缩放比例
+            opts.inSampleSize = computeSampleSize(opts, width * height);
+            opts.inJustDecodeBounds = false;//这里一定要将其设置回false，因为之前我们将其设置成了true
+            opts.inInputShareable = true;
+            opts.inPurgeable = true;
+        }
+        try {
+            return BitmapFactory.decodeFile(path, opts);
+        } catch (OutOfMemoryError e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static int computeSampleSize(BitmapFactory.Options options, int maxNumOfPixels) {
+        int initialSize = computeInitialSampleSize(options, maxNumOfPixels);
+
+        int roundedSize;
+        if (initialSize <= 8) {
+            roundedSize = 1;
+            while (roundedSize < initialSize) {
+                roundedSize <<= 1;//缩放比例必须是2的指数函数值
+            }
+        } else {
+            roundedSize = (initialSize + 7) / 8 * 8;
+        }
+
+        return roundedSize;
+    }
+
+    private static int computeInitialSampleSize(BitmapFactory.Options options, int maxNumOfPixels) {
+        double w = options.outWidth;
+        double h = options.outHeight;
+
+        int lowerBound = (maxNumOfPixels == -1) ? 1 : (int) Math.ceil(Math.sqrt(w * h / maxNumOfPixels));
+        return lowerBound;
+    }
+
+    public Bitmap resizeBitmap(Bitmap bitmap) {
+        if (bitmap.getWidth() > 4096 || bitmap.getHeight() > 4096) {
+            bitmap = Bitmap.createScaledBitmap(bitmap, srcBitmap.getWidth() / 2, srcBitmap.getHeight() / 2, true);
+            return resizeBitmap(bitmap);
+        }
+        return bitmap;
     }
 
     public void setBitmap(Bitmap bitmap) {
@@ -101,7 +182,7 @@ public class CropImageView extends View {
         invalidate();
     }
 
-    public Bitmap crop() {
+    public Bitmap crop(boolean refresh) {
         int startX = 0, startY = 0, cropWidth = 0, cropHeight = 0;
         if (angle == 0) {
             startX = (int) ((mLeft - dx) / scale);
@@ -135,10 +216,12 @@ public class CropImageView extends View {
         Matrix cropMatrix = new Matrix();
         cropMatrix.setRotate(angle);
         Bitmap tempBitmap = Bitmap.createBitmap(srcBitmap, startX, startY, cropWidth, cropHeight, cropMatrix, true);
-        if(!srcBitmap.equals(tempBitmap)){
-            srcBitmap.recycle();
+        if (refresh) {
+            if (!srcBitmap.equals(tempBitmap)) {
+                srcBitmap.recycle();
+            }
+            setBitmap(tempBitmap);
         }
-        setBitmap(tempBitmap);
         return tempBitmap;
     }
 
@@ -152,6 +235,7 @@ public class CropImageView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         drawBitmap(canvas);
+        drawShadow(canvas);
         drawNet(canvas);
 
     }
@@ -160,6 +244,15 @@ public class CropImageView extends View {
         if (srcBitmap != null) {
             canvas.drawBitmap(srcBitmap, drawMatrixs, null);
         }
+    }
+
+    private void drawShadow(Canvas canvas) {
+        int i = canvas.saveLayer(0, 0, getMeasuredWidth(), getMeasuredHeight(), null, Canvas.ALL_SAVE_FLAG);
+        canvas.drawRect(mBorderLeft, mBorderTop, mBorderRight, mBorderBottom, mShadowPaint);
+        mShadowPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+        canvas.drawRect(mLeft, mTop, mRight, mBottom, mShadowPaint);
+        mShadowPaint.setXfermode(null);
+        canvas.restoreToCount(i);
     }
 
     private void drawNet(Canvas canvas) {
@@ -330,20 +423,24 @@ public class CropImageView extends View {
      * 判断是否越界
      */
     private void minJudgement() {
-        if (Math.abs(mLeft - mRight) < MIN_W) {
+        if (mRight - mLeft < MIN_W) {
             mLeft = mLastLeft;
             mRight = mLastRight;
         }
-        if (Math.abs(mTop - mBottom) < MIN_H) {
+        if (mBottom - mTop < MIN_H) {
             mTop = mLastTop;
             mBottom = mLastBottom;
         }
         if (srcBitmap != null) {
-            if (mCurRect == 8 && (mLeft < mBorderLeft || mTop < mBorderTop || mRight > mBorderRight || mBottom > mBorderBottom)) {
-                mLeft = mLastLeft;
-                mRight = mLastRight;
-                mTop = mLastTop;
-                mBottom = mLastBottom;
+            if (mCurRect == 8) {
+                if (mLeft < mBorderLeft || mRight > mBorderRight) {
+                    mLeft = mLastLeft;
+                    mRight = mLastRight;
+                }
+                if (mTop < mBorderTop || mBottom > mBorderBottom) {
+                    mTop = mLastTop;
+                    mBottom = mLastBottom;
+                }
             }
             if (mLeft < mBorderLeft) {
                 mLeft = mLastLeft;
